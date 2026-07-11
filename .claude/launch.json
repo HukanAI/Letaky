@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["expo", "start", "--web"],
       "port": 8081
+    },
+    {
+      "name": "pages-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "C:/Users/ondra/AppData/Local/Temp/claude/C--Users-ondra-Documents-Claude-projects-Letaky/b3cf7c70-5835-44e5-bf55-79b3efd415f5/scratchpad/pages_root", "-l", "4174"],
+      "port": 4174
     }
   ]
 }

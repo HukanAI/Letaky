@@ -13,6 +13,24 @@ Funkce:
 
 Funguje na Androidu i iPhonu (jedna společná aplikace postavená na React Native / Expo).
 
+## Instalace do telefonu přímo z GitHubu (doporučeno)
+
+Appka je nasazená jako instalovatelná webová appka (PWA) na GitHub Pages — žádný
+APK soubor, žádný App Store, jen odkaz:
+
+**👉 https://hukanai.github.io/Letaky/**
+
+1. Otevři odkaz výše v telefonu (Chrome na Androidu, Safari na iPhonu).
+2. **Android (Chrome):** klepni na nabídku (⋮) → **"Přidat na plochu"** /
+   **"Nainstalovat aplikaci"**.
+   **iPhone (Safari):** klepni na ikonu sdílení (□↑) → **"Přidat na plochu"**.
+3. Na ploše telefonu se objeví ikona Letáky, která se otevírá na celou obrazovku
+   jako normální appka. Zaškrtnutí adres se ukládá přímo v telefonu a appka
+   funguje i bez internetu (jen první otevření vyžaduje připojení).
+
+Po každém `git push` do větve `main` se appka na tomto odkazu automaticky
+aktualizuje (viz [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)).
+
 ## Spuštění při vývoji (bez instalace do telefonu)
 
 1. Nainstaluj závislosti:

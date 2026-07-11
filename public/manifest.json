@@ -1,0 +1,27 @@
+{
+  "short_name": "Letáky",
+  "name": "Letáky – checklist doručení",
+  "icons": [
+    {
+      "src": "favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/Letaky/",
+  "scope": "/Letaky/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#2e7d5b",
+  "background_color": "#f5f6f8"
+}
