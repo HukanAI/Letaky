@@ -1,17 +1,21 @@
 {
   "expo": {
-    "name": "Letaky",
-    "slug": "Letaky",
+    "name": "Letáky",
+    "slug": "letaky",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#f5f6f8",
+    "scheme": "letaky",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hukanai.letaky"
     },
     "android": {
+      "package": "com.hukanai.letaky",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#2e7d5b",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
