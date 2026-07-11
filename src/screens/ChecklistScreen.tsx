@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
-  Alert,
   StyleSheet,
   Platform,
 } from "react-native";
@@ -13,12 +12,14 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ADDRESSES } from "../data/addresses";
 import { loadChecked, saveChecked } from "../lib/storage";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function ChecklistScreen() {
   const insets = useSafeAreaInsets();
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   useEffect(() => {
     loadChecked().then((data) => {
@@ -46,19 +47,9 @@ export default function ChecklistScreen() {
     return ADDRESSES.filter((a) => a.toLowerCase().includes(q));
   }, [query]);
 
-  const handleReset = () => {
-    Alert.alert(
-      "Resetovat vše?",
-      "Zrušíte odškrtnutí u všech adres. Tato akce se nedá vrátit zpět.",
-      [
-        { text: "Zrušit", style: "cancel" },
-        {
-          text: "Resetovat",
-          style: "destructive",
-          onPress: () => setChecked({}),
-        },
-      ]
-    );
+  const handleResetConfirmed = () => {
+    setChecked({});
+    setConfirmVisible(false);
   };
 
   const progress = ADDRESSES.length > 0 ? doneCount / ADDRESSES.length : 0;
@@ -67,8 +58,13 @@ export default function ChecklistScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Letáky</Text>
-        <TouchableOpacity onPress={handleReset} style={styles.resetButton} hitSlop={10}>
-          <Ionicons name="refresh" size={22} color="#5b6472" />
+        <TouchableOpacity
+          onPress={() => setConfirmVisible(true)}
+          style={styles.resetButton}
+          hitSlop={10}
+        >
+          <Ionicons name="refresh" size={18} color="#5b6472" />
+          <Text style={styles.resetButtonText}>Resetovat</Text>
         </TouchableOpacity>
       </View>
 
@@ -120,6 +116,16 @@ export default function ChecklistScreen() {
           <Text style={styles.emptyText}>Žádná adresa neodpovídá hledání.</Text>
         }
       />
+
+      <ConfirmDialog
+        visible={confirmVisible}
+        title="Resetovat vše?"
+        message="Zrušíte odškrtnutí u všech adres. Tato akce se nedá vrátit zpět."
+        confirmLabel="Resetovat"
+        cancelLabel="Zrušit"
+        onConfirm={handleResetConfirmed}
+        onCancel={() => setConfirmVisible(false)}
+      />
     </View>
   );
 }
@@ -143,7 +149,16 @@ const styles = StyleSheet.create({
     color: "#1c2333",
   },
   resetButton: {
-    padding: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  resetButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#5b6472",
+    marginLeft: 4,
   },
   progressRow: {
     flexDirection: "row",
