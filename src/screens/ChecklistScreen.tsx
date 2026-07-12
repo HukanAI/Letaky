@@ -5,7 +5,6 @@ import {
   SectionList,
   TouchableOpacity,
   TextInput,
-  Switch,
   StyleSheet,
   Platform,
 } from "react-native";
@@ -66,14 +65,33 @@ export default function ChecklistScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Letáky</Text>
-        <TouchableOpacity
-          onPress={() => setConfirmVisible(true)}
-          style={styles.resetButton}
-          hitSlop={10}
-        >
-          <Ionicons name="refresh" size={18} color="#5b6472" />
-          <Text style={styles.resetButtonText}>Resetovat</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => toggleAutoCheck(!autoCheck)}
+            style={styles.headerButton}
+            hitSlop={10}
+            accessibilityLabel="Automaticky odškrtnout dům podle GPS, když jsi blízko"
+          >
+            <Ionicons
+              name={autoCheck ? "location" : "location-outline"}
+              size={18}
+              color={autoCheck ? "#2e7d5b" : "#8a93a2"}
+            />
+            <Text
+              style={[styles.headerButtonText, autoCheck && { color: "#2e7d5b" }]}
+            >
+              Auto
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setConfirmVisible(true)}
+            style={styles.headerButton}
+            hitSlop={10}
+          >
+            <Ionicons name="refresh" size={18} color="#5b6472" />
+            <Text style={styles.headerButtonText}>Resetovat</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.progressRow}>
@@ -181,18 +199,6 @@ export default function ChecklistScreen() {
             </View>
             <Text style={styles.legendHint}>Klepni na dům = hotovo</Text>
           </View>
-          <View style={styles.autoRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.autoLabel}>Automaticky odškrtnout u domu</Text>
-              <Text style={styles.autoSub}>Podle GPS, když jsi do ~15 m od domu</Text>
-            </View>
-            <Switch
-              value={autoCheck}
-              onValueChange={toggleAutoCheck}
-              trackColor={{ true: "#2e7d5b", false: "#c7ccd6" }}
-              thumbColor="#ffffff"
-            />
-          </View>
           <MapPanel checked={checked} onToggle={toggle} autoCheck={autoCheck} />
         </View>
       )}
@@ -228,13 +234,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1c2333",
   },
-  resetButton: {
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerButton: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 6,
     paddingHorizontal: 8,
   },
-  resetButtonText: {
+  headerButtonText: {
     fontSize: 13,
     fontWeight: "600",
     color: "#5b6472",
@@ -406,27 +416,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#8a93a2",
     marginLeft: "auto",
-  },
-  autoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    marginHorizontal: 20,
-    marginBottom: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#eceef2",
-  },
-  autoLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1c2333",
-  },
-  autoSub: {
-    fontSize: 12,
-    color: "#8a93a2",
-    marginTop: 2,
   },
 });

@@ -12,8 +12,8 @@ Funkce:
   U každého domu je **štítek s číslem** (zobrazí se po přiblížení na úroveň ulice,
   aby se při přehledu nepřekrývaly).
 - **Automatické odškrtnutí při příchodu k domu** (volitelné, ve výchozím stavu
-  vypnuté – zapíná se přepínačem nad mapou): jakmile jsi podle GPS do ~15 m od
-  nedoručeného domu a poloha je dost přesná, sám se označí jako hotový.
+  vypnuté – zapíná se tlačítkem **„Auto"** v hlavičce): jakmile jsi podle GPS do
+  ~15 m od nedoručeného domu a poloha je dost přesná, sám se označí jako hotový.
 - GPS poloha se na mapě zapne a sleduje **automaticky** po otevření mapy
   (vyžaduje povolení polohy v prohlížeči). Poloha je zobrazená jako **šipka
   ukazující směr, kterým se díváš** (podle kompasu telefonu); dokud kompas nemá
