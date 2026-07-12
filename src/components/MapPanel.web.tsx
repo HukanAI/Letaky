@@ -43,6 +43,8 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const guidingRef = useRef(false);
   const guideTargetRef = useRef<string | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
+  const routeOriginRef = useRef<L.LatLng | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const [hasFix, setHasFix] = useState(false);
   const [guiding, setGuiding] = useState(false);
@@ -78,6 +80,11 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const stopGuiding = () => {
     guidingRef.current = false;
     guideTargetRef.current = null;
+    routeOriginRef.current = null;
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
     setGuiding(false);
     setGuideInfo(null);
     if (routeLineRef.current) {
@@ -85,6 +92,78 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       routeLineRef.current = null;
     }
     styleAllMarkers();
+  };
+
+  const drawRoute = (latlngs: L.LatLngExpression[], approx: boolean) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!routeLineRef.current) {
+      routeLineRef.current = L.polyline(latlngs, {
+        color: ME,
+        weight: 5,
+        opacity: 0.85,
+      }).addTo(map);
+    } else {
+      routeLineRef.current.setLatLngs(latlngs);
+    }
+    routeLineRef.current.setStyle({
+      dashArray: approx ? "6 8" : "",
+      weight: approx ? 4 : 5,
+    });
+  };
+
+  const fetchRoute = (
+    from: L.LatLng,
+    target: { address: string; street: string; lat: number; lon: number },
+    crowDist: number
+  ) => {
+    setGuideInfo(`${target.street} ${target.address} · …`);
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    const url =
+      `https://routing.openstreetmap.de/routed-foot/route/v1/driving/` +
+      `${from.lng},${from.lat};${target.lon},${target.lat}` +
+      `?overview=full&geometries=geojson`;
+
+    const fallback = () => {
+      drawRoute(
+        [
+          [from.lat, from.lng],
+          [target.lat, target.lon],
+        ],
+        true
+      );
+      setGuideInfo(
+        `${target.street} ${target.address} · ${formatDist(crowDist)} (přímo)`
+      );
+    };
+
+    fetch(url, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        if (guideTargetRef.current !== target.address) return;
+        const route = data?.routes?.[0];
+        if (data?.code === "Ok" && route) {
+          const latlngs = route.geometry.coordinates.map(
+            ([lon, lat]: [number, number]) => [lat, lon] as L.LatLngExpression
+          );
+          drawRoute(latlngs, false);
+          const mins = Math.max(1, Math.round(route.duration / 60));
+          setGuideInfo(
+            `${target.street} ${target.address} · ${formatDist(
+              route.distance
+            )} · ≈ ${mins} min`
+          );
+        } else {
+          fallback();
+        }
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        fallback();
+      });
   };
 
   const updateGuidance = () => {
@@ -109,26 +188,24 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       }
     }
 
-    const prevTarget = guideTargetRef.current;
+    const targetChanged = guideTargetRef.current !== best.address;
     guideTargetRef.current = best.address;
-    if (prevTarget !== best.address) styleAllMarkers();
+    if (targetChanged) styleAllMarkers();
 
-    const line: L.LatLngExpression[] = [
-      [me.lat, me.lng],
-      [best.lat, best.lon],
-    ];
-    if (!routeLineRef.current) {
-      routeLineRef.current = L.polyline(line, {
-        color: ME,
-        weight: 4,
-        opacity: 0.85,
-        dashArray: "6 8",
-      }).addTo(map);
-    } else {
-      routeLineRef.current.setLatLngs(line);
+    const movedFar =
+      !routeOriginRef.current || me.distanceTo(routeOriginRef.current) > 20;
+
+    if (targetChanged || movedFar || !routeLineRef.current) {
+      routeOriginRef.current = me;
+      fetchRoute(me, best, bestDist);
+    } else if (routeLineRef.current) {
+      // Between refetches keep the line visually attached to the moving dot.
+      const pts = routeLineRef.current.getLatLngs() as L.LatLng[];
+      if (pts.length) {
+        pts[0] = me;
+        routeLineRef.current.setLatLngs(pts);
+      }
     }
-
-    setGuideInfo(`${best.street} ${best.address} · ${formatDist(bestDist)}`);
   };
 
   const startWatch = () => {

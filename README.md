@@ -13,10 +13,11 @@ Funkce:
   mapy (vyžaduje povolení polohy v prohlížeči); tlačítko se zaměřovačem mapu
   jen vycentruje na tvou aktuální polohu
 - Tlačítko **„K nejbližšímu"** zapne navigaci **přímo v aplikaci**: na mapě
-  nakreslí čáru od tvé polohy k nejbližšímu ještě nedoručenému domu, cíl zvýrazní
-  a nahoře ukáže jeho adresu a vzdálenost. Jak se pohybuješ a jak odškrtáváš domy,
-  se cíl i čára průběžně přepočítávají. (Směr je vzdušnou čarou, ne po ulicích;
-  neopouští aplikaci a funguje i offline.)
+  nakreslí trasu **po ulicích** od tvé polohy k nejbližšímu ještě nedoručenému
+  domu, cíl zvýrazní a nahoře ukáže jeho adresu, vzdálenost a čas chůze. Jak se
+  pohybuješ a jak odškrtáváš domy, se cíl i trasa průběžně přepočítávají.
+  (Pokud by routovací služba nebyla dostupná, čára se zobrazí přímá „vzdušnou
+  čarou".)
 - Zaškrtávání jednotlivých adres, ihned se ukládá do zařízení (seznam i mapa sdílí stav)
 - Ukazatel postupu (kolik z kolika je hotovo)
 - Vyhledávání/filtrování podle čísla domu
@@ -89,6 +90,11 @@ GPS souřadnice domů v [`src/data/geo.ts`](src/data/geo.ts) pocházejí z ofici
 registru adres ČR (RÚIAN / ČÚZK) a byly převedeny ze systému S-JTSK do WGS84.
 Mapa používá dlaždice z OpenStreetMap — proto při prvním otevření mapy potřebuje
 internet (samotné zaškrtávání funguje offline).
+
+Navigace po ulicích používá bezplatnou pěší routovací službu
+[FOSSGIS OSRM](https://routing.openstreetmap.de) (bez API klíče, komunitní projekt
+OpenStreetMap) — vyžaduje připojení k internetu. Když není dostupná, aplikace
+nakreslí přímou čáru k cíli.
 
 ## Technologie
 
