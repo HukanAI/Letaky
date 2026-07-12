@@ -3,11 +3,11 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { ADDRESSES } from "../data/addresses";
 import { GEO } from "../data/geo";
-import { useTheme } from "../theme";
 
 export type MapPanelProps = {
   checked: Record<string, boolean>;
   onToggle: (address: string) => void;
+  autoCheck?: boolean;
 };
 
 const DONE = "#2e7d5b";
@@ -42,21 +42,8 @@ const meIconHtml =
   ';border:3px solid #ffffff;box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>' +
   "</div>";
 
-const TILES = {
-  light: {
-    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: "© OpenStreetMap",
-    options: { maxZoom: 19 } as L.TileLayerOptions,
-  },
-  dark: {
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: "© OpenStreetMap, © CARTO",
-    options: { maxZoom: 20, subdomains: "abcd" } as L.TileLayerOptions,
-  },
-};
-
-// Číselné štítky u domů zmizí pod tímto zoomem, aby se při oddálení nepřekrývaly.
-const LABEL_MIN_ZOOM = 17;
+// Číselné štítky u domů se ukážou až od tohoto zoomu, aby se při přehledu nepřekrývaly.
+const LABEL_MIN_ZOOM = 18;
 // Do této vzdálenosti (m) od nedoručeného domu ho GPS automaticky označí.
 const AUTO_RADIUS = 15;
 
@@ -65,17 +52,15 @@ function ensureLabelStyles() {
   const s = document.createElement("style");
   s.id = "letaky-map-styles";
   s.textContent = [
-    ".house-label{background:transparent;border:none;box-shadow:none;padding:0;margin:0;font-weight:600;font-size:11px;color:#1c2333;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;}",
+    ".house-label{background:rgba(255,255,255,0.82);border:none;box-shadow:none;padding:0 2px;margin:0;border-radius:3px;font-weight:600;font-size:11px;color:#1c2333;white-space:nowrap;}",
     ".house-label:before{display:none !important;}",
-    ".house-label.done-label{opacity:.55;text-decoration:line-through;}",
-    ".leaflet-container.theme-dark .house-label{color:#e8ebf0;text-shadow:0 0 3px #000,0 0 3px #000,0 0 3px #000;}",
+    ".house-label.done-label{opacity:.5;text-decoration:line-through;}",
     ".leaflet-container.labels-hidden .house-label{display:none;}",
   ].join("\n");
   document.head.appendChild(s);
 }
 
-export default function MapPanel({ checked, onToggle }: MapPanelProps) {
-  const { scheme, colors } = useTheme();
+export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Record<string, L.CircleMarker>>({});
@@ -85,11 +70,13 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const checkedRef = useRef(checked);
   checkedRef.current = checked;
 
+  const autoCheckRef = useRef(!!autoCheck);
+  autoCheckRef.current = !!autoCheck;
+
   const watchIdRef = useRef<number | null>(null);
   const meMarkerRef = useRef<L.Marker | null>(null);
   const meAccuracyRef = useRef<L.Circle | null>(null);
   const lastPosRef = useRef<L.LatLng | null>(null);
-  const tileLayerRef = useRef<L.TileLayer | null>(null);
   const autoCheckedRef = useRef<Set<string>>(new Set());
 
   const headingRef = useRef<number | null>(null);
@@ -184,6 +171,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
 
   // Automaticky označí nedoručený dům, jakmile jsi u něj (a přesnost GPS je dobrá).
   const maybeAutoCheck = (here: L.LatLng, accuracy: number) => {
+    if (!autoCheckRef.current) return;
     if (accuracy > 25) return;
     let near: (typeof POINTS)[number] | null = null;
     let nearD = Infinity;
@@ -400,6 +388,11 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
     });
     mapRef.current = map;
 
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap",
+    }).addTo(map);
+
     const latlngs: L.LatLngExpression[] = [];
     for (const p of POINTS) {
       const marker = L.circleMarker([p.lat, p.lon], {
@@ -449,25 +442,8 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       meAccuracyRef.current = null;
       lastPosRef.current = null;
       routeLineRef.current = null;
-      tileLayerRef.current = null;
     };
   }, []);
-
-  // Swap map tiles + theme class when the color scheme changes
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const cfg = scheme === "dark" ? TILES.dark : TILES.light;
-    if (tileLayerRef.current) map.removeLayer(tileLayerRef.current);
-    tileLayerRef.current = L.tileLayer(cfg.url, {
-      attribution: cfg.attribution,
-      ...cfg.options,
-    }).addTo(map);
-    tileLayerRef.current.bringToBack();
-    const c = map.getContainer();
-    c.classList.remove("theme-light", "theme-dark");
-    c.classList.add(scheme === "dark" ? "theme-dark" : "theme-light");
-  }, [scheme]);
 
   // Recolor markers + refresh guidance when the checked state changes
   useEffect(() => {
@@ -575,7 +551,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
           height: 44,
           borderRadius: 22,
           border: "none",
-          background: colors.controlBg,
+          background: "#ffffff",
           boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
           cursor: "pointer",
           display: "flex",
@@ -589,7 +565,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
           height="22"
           viewBox="0 0 24 24"
           fill="none"
-          stroke={hasFix ? ME : colors.controlIcon}
+          stroke={hasFix ? ME : "#5b6472"}
           strokeWidth="2"
           strokeLinecap="round"
         >
