@@ -19,9 +19,6 @@ Funkce:
   pohybuješ a jak odškrtáváš domy, se cíl i trasa průběžně přepočítávají.
   (Pokud by routovací služba nebyla dostupná, čára se zobrazí přímá „vzdušnou
   čarou".)
-- Tlačítko **„Nejkratší trasa"** navrhne **optimální pořadí obcházení všech
-  zbývajících vchodů** (řeší problém obchodního cestujícího) a vykreslí celou
-  trasu po ulicích i s celkovou vzdáleností a časem.
 - Zaškrtávání jednotlivých adres, ihned se ukládá do zařízení (seznam i mapa sdílí stav)
 - Ukazatel postupu (kolik z kolika je hotovo)
 - Vyhledávání/filtrování podle čísla domu

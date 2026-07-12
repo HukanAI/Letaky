@@ -12,7 +12,6 @@ export type MapPanelProps = {
 const DONE = "#2e7d5b";
 const TODO = "#d64545";
 const ME = "#1e73e8";
-const TRIP = "#6a3fb5";
 const OSRM = "https://routing.openstreetmap.de/routed-foot";
 
 const POINTS = ADDRESSES.filter((a) => GEO[a]).map((a) => ({
@@ -67,15 +66,9 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const routeOriginRef = useRef<L.LatLng | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const trippingRef = useRef(false);
-  const tripLineRef = useRef<L.Polyline | null>(null);
-  const tripAbortRef = useRef<AbortController | null>(null);
-
   const [hasFix, setHasFix] = useState(false);
   const [guiding, setGuiding] = useState(false);
   const [guideInfo, setGuideInfo] = useState<string | null>(null);
-  const [tripping, setTripping] = useState(false);
-  const [tripInfo, setTripInfo] = useState<string | null>(null);
   const [banner, setBanner] = useState<Banner>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -272,90 +265,6 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
     styleAllMarkers();
   };
 
-  // --- Shortest route through all remaining houses (OSRM trip / TSP) ---
-  const stopTrip = () => {
-    trippingRef.current = false;
-    if (tripAbortRef.current) {
-      tripAbortRef.current.abort();
-      tripAbortRef.current = null;
-    }
-    setTripping(false);
-    setTripInfo(null);
-    if (tripLineRef.current) {
-      tripLineRef.current.remove();
-      tripLineRef.current = null;
-    }
-  };
-
-  const startTrip = () => {
-    const map = mapRef.current;
-    if (!map) return;
-    enableHeading();
-    if (trippingRef.current) {
-      stopTrip();
-      return;
-    }
-    stopGuiding();
-
-    const remaining = POINTS.filter((p) => !checkedRef.current[p.address]);
-    if (remaining.length === 0) {
-      showBanner("Všechny domy jsou hotové 🎉", "info");
-      return;
-    }
-
-    trippingRef.current = true;
-    setTripping(true);
-    setTripInfo("Počítám nejkratší trasu…");
-
-    const parts: string[] = [];
-    const me = lastPosRef.current;
-    if (me) parts.push(`${me.lng},${me.lat}`);
-    for (const p of remaining) parts.push(`${p.lon},${p.lat}`);
-
-    if (tripAbortRef.current) tripAbortRef.current.abort();
-    const ctrl = new AbortController();
-    tripAbortRef.current = ctrl;
-
-    const url =
-      `${OSRM}/trip/v1/driving/${parts.join(";")}` +
-      `?source=first&roundtrip=false&overview=full&geometries=geojson`;
-
-    fetch(url, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!trippingRef.current) return;
-        const trip = data?.trips?.[0];
-        if (data?.code !== "Ok" || !trip) {
-          stopTrip();
-          showBanner("Trasu se nepodařilo spočítat.", "error");
-          return;
-        }
-        const latlngs = trip.geometry.coordinates.map(
-          ([lon, lat]: [number, number]) => [lat, lon] as L.LatLngExpression
-        );
-        if (!tripLineRef.current) {
-          tripLineRef.current = L.polyline(latlngs, {
-            color: TRIP,
-            weight: 5,
-            opacity: 0.85,
-          }).addTo(map);
-        } else {
-          tripLineRef.current.setLatLngs(latlngs);
-        }
-        map.fitBounds(tripLineRef.current.getBounds().pad(0.1));
-        setTripInfo(
-          `Nejkratší trasa · ${remaining.length} domů · ${formatDist(
-            trip.distance
-          )} · ${formatMin(trip.duration)}`
-        );
-      })
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
-        stopTrip();
-        showBanner("Trasu se nepodařilo spočítat.", "error");
-      });
-  };
-
   const startWatch = () => {
     if (watchIdRef.current != null) return;
     if (!("geolocation" in navigator)) {
@@ -467,7 +376,6 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       meAccuracyRef.current = null;
       lastPosRef.current = null;
       routeLineRef.current = null;
-      tripLineRef.current = null;
     };
   }, []);
 
@@ -496,7 +404,6 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       stopGuiding();
       return;
     }
-    stopTrip();
     const me = lastPosRef.current;
     if (!me) {
       startWatch();
@@ -543,32 +450,6 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   return (
     <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
-
-      <button
-        onClick={startTrip}
-        title="Navrhnout nejkratší trasu přes všechny vchody"
-        style={{
-          ...btnBase,
-          left: 12,
-          bottom: 80,
-          background: tripping ? "#a12727" : TRIP,
-        }}
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          {tripping ? (
-            <path d="M6 6l12 12M18 6L6 18" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
-          ) : (
-            <path
-              d="M4 18c4 0 4-12 8-12s4 12 8 12"
-              stroke="#fff"
-              strokeWidth="2"
-              strokeLinecap="round"
-              fill="none"
-            />
-          )}
-        </svg>
-        {tripping ? "Skrýt trasu" : "Nejkratší trasa"}
-      </button>
 
       <button
         onClick={toggleGuiding}
@@ -630,7 +511,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
         </svg>
       </button>
 
-      {(guiding && guideInfo) || (tripping && tripInfo) ? (
+      {guiding && guideInfo ? (
         <div
           style={{
             position: "absolute",
@@ -638,7 +519,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 1000,
-            background: guiding ? ME : TRIP,
+            background: ME,
             color: "#ffffff",
             borderRadius: 8,
             padding: "7px 14px",
@@ -649,7 +530,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
             boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
           }}
         >
-          ➤ {guiding ? guideInfo : tripInfo}
+          ➤ {guideInfo}
         </div>
       ) : (
         banner && (
