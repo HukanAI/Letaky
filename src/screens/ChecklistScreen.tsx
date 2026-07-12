@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   TextInput,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ADDRESSES } from "../data/addresses";
+import { GEO } from "../data/geo";
 import { useChecklist } from "../lib/useChecklist";
 import ConfirmDialog from "../components/ConfirmDialog";
 import MapPanel from "../components/MapPanel";
@@ -24,10 +25,20 @@ export default function ChecklistScreen() {
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [mode, setMode] = useState<Mode>("list");
 
-  const filtered = useMemo(() => {
+  const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return ADDRESSES;
-    return ADDRESSES.filter((a) => a.toLowerCase().includes(q));
+    const order: string[] = [];
+    const byStreet = new Map<string, string[]>();
+    for (const a of ADDRESSES) {
+      if (q && !a.toLowerCase().includes(q)) continue;
+      const street = GEO[a]?.street ?? "Ostatní";
+      if (!byStreet.has(street)) {
+        byStreet.set(street, []);
+        order.push(street);
+      }
+      byStreet.get(street)!.push(a);
+    }
+    return order.map((title) => ({ title, data: byStreet.get(title)! }));
   }, [query]);
 
   const handleResetConfirmed = () => {
@@ -105,10 +116,22 @@ export default function ChecklistScreen() {
             />
           </View>
 
-          <FlatList
-            data={filtered}
+          <SectionList
+            sections={sections}
             keyExtractor={(item) => item}
+            stickySectionHeadersEnabled
             contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+            renderSectionHeader={({ section }) => {
+              const done = section.data.filter((a) => checked[a]).length;
+              return (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>{section.title}</Text>
+                  <Text style={styles.sectionCount}>
+                    {done} / {section.data.length}
+                  </Text>
+                </View>
+              );
+            }}
             renderItem={({ item }) => {
               const isChecked = !!checked[item];
               return (
@@ -264,6 +287,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1c2333",
     ...Platform.select({ web: { outlineStyle: "none" as any } }),
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f5f6f8",
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1c2333",
+  },
+  sectionCount: {
+    fontVariant: ["tabular-nums"],
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#8a93a2",
   },
   row: {
     flexDirection: "row",
