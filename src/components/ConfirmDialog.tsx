@@ -1,5 +1,6 @@
 import React from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
+import { useTheme } from "../theme";
 
 type Props = {
   visible: boolean;
@@ -20,17 +21,21 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: Props) {
+  const { colors } = useTheme();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.backdrop} onPress={onCancel}>
-        <Pressable style={styles.card}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.message}>{message}</Text>
+        <Pressable style={[styles.card, { backgroundColor: colors.card }]}>
+          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.message, { color: colors.muted }]}>{message}</Text>
           <View style={styles.actions}>
             <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-              <Text style={styles.cancelText}>{cancelLabel}</Text>
+              <Text style={[styles.cancelText, { color: colors.muted }]}>{cancelLabel}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
+            <TouchableOpacity
+              style={[styles.confirmButton, { backgroundColor: colors.danger }]}
+              onPress={onConfirm}
+            >
               <Text style={styles.confirmText}>{confirmLabel}</Text>
             </TouchableOpacity>
           </View>
@@ -51,19 +56,16 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 340,
-    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
   },
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1c2333",
     marginBottom: 8,
   },
   message: {
     fontSize: 15,
-    color: "#5b6472",
     lineHeight: 21,
     marginBottom: 20,
   },
@@ -79,13 +81,11 @@ const styles = StyleSheet.create({
   cancelText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#5b6472",
   },
   confirmButton: {
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: "#d64545",
     marginLeft: 8,
   },
   confirmText: {

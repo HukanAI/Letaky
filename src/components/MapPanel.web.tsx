@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { ADDRESSES } from "../data/addresses";
 import { GEO } from "../data/geo";
+import { useTheme } from "../theme";
 
 export type MapPanelProps = {
   checked: Record<string, boolean>;
@@ -41,7 +42,40 @@ const meIconHtml =
   ';border:3px solid #ffffff;box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>' +
   "</div>";
 
+const TILES = {
+  light: {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: "© OpenStreetMap",
+    options: { maxZoom: 19 } as L.TileLayerOptions,
+  },
+  dark: {
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    attribution: "© OpenStreetMap, © CARTO",
+    options: { maxZoom: 20, subdomains: "abcd" } as L.TileLayerOptions,
+  },
+};
+
+// Číselné štítky u domů zmizí pod tímto zoomem, aby se při oddálení nepřekrývaly.
+const LABEL_MIN_ZOOM = 17;
+// Do této vzdálenosti (m) od nedoručeného domu ho GPS automaticky označí.
+const AUTO_RADIUS = 15;
+
+function ensureLabelStyles() {
+  if (document.getElementById("letaky-map-styles")) return;
+  const s = document.createElement("style");
+  s.id = "letaky-map-styles";
+  s.textContent = [
+    ".house-label{background:transparent;border:none;box-shadow:none;padding:0;margin:0;font-weight:600;font-size:11px;color:#1c2333;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;}",
+    ".house-label:before{display:none !important;}",
+    ".house-label.done-label{opacity:.55;text-decoration:line-through;}",
+    ".leaflet-container.theme-dark .house-label{color:#e8ebf0;text-shadow:0 0 3px #000,0 0 3px #000,0 0 3px #000;}",
+    ".leaflet-container.labels-hidden .house-label{display:none;}",
+  ].join("\n");
+  document.head.appendChild(s);
+}
+
 export default function MapPanel({ checked, onToggle }: MapPanelProps) {
+  const { scheme, colors } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Record<string, L.CircleMarker>>({});
@@ -55,6 +89,8 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const meMarkerRef = useRef<L.Marker | null>(null);
   const meAccuracyRef = useRef<L.Circle | null>(null);
   const lastPosRef = useRef<L.LatLng | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const autoCheckedRef = useRef<Set<string>>(new Set());
 
   const headingRef = useRef<number | null>(null);
   const headingEnabledRef = useRef(false);
@@ -131,9 +167,41 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       weight: isTarget ? 4 : 2,
     });
     m.setRadius(isTarget ? 11 : 9);
+    const el = m.getTooltip()?.getElement() as HTMLElement | undefined;
+    if (el) el.classList.toggle("done-label", done);
   };
   const styleAllMarkers = () => {
     for (const p of POINTS) styleMarker(p.address);
+  };
+
+  const updateLabelVisibility = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const c = map.getContainer();
+    if (map.getZoom() < LABEL_MIN_ZOOM) c.classList.add("labels-hidden");
+    else c.classList.remove("labels-hidden");
+  };
+
+  // Automaticky označí nedoručený dům, jakmile jsi u něj (a přesnost GPS je dobrá).
+  const maybeAutoCheck = (here: L.LatLng, accuracy: number) => {
+    if (accuracy > 25) return;
+    let near: (typeof POINTS)[number] | null = null;
+    let nearD = Infinity;
+    for (const p of POINTS) {
+      if (checkedRef.current[p.address]) continue;
+      if (autoCheckedRef.current.has(p.address)) continue;
+      const d = here.distanceTo(L.latLng(p.lat, p.lon));
+      if (d < nearD) {
+        nearD = d;
+        near = p;
+      }
+    }
+    if (near && nearD <= AUTO_RADIUS) {
+      autoCheckedRef.current.add(near.address);
+      toggleRef.current(near.address);
+      showBanner(`Označeno: ${near.street} ${near.address}`, "info");
+      (navigator as any).vibrate?.(60);
+    }
   };
 
   // --- Single-target guidance (nearest undelivered) ---
@@ -304,6 +372,8 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
           meMarkerRef.current.setLatLng(ll);
           meAccuracyRef.current?.setLatLng(ll).setRadius(accuracy);
         }
+        if (headingRef.current != null) applyHeading(headingRef.current);
+        maybeAutoCheck(ll, accuracy);
         updateGuidance();
       },
       (err) => {
@@ -322,16 +392,13 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    ensureLabelStyles();
+
     const map = L.map(containerRef.current, {
       zoomControl: true,
       attributionControl: true,
     });
     mapRef.current = map;
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "© OpenStreetMap",
-    }).addTo(map);
 
     const latlngs: L.LatLngExpression[] = [];
     for (const p of POINTS) {
@@ -342,9 +409,11 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
         fillColor: TODO,
         fillOpacity: 0.95,
       });
-      marker.bindTooltip(`${p.street} ${p.address}`, {
+      marker.bindTooltip(p.address, {
+        permanent: true,
         direction: "top",
-        offset: [0, -8],
+        offset: [0, -4],
+        className: "house-label",
       });
       marker.on("click", () => toggleRef.current(p.address));
       marker.addTo(map);
@@ -353,7 +422,11 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
     }
 
     map.fitBounds(L.latLngBounds(latlngs).pad(0.15));
-    setTimeout(() => map.invalidateSize(), 0);
+    map.on("zoomend", updateLabelVisibility);
+    setTimeout(() => {
+      map.invalidateSize();
+      updateLabelVisibility();
+    }, 0);
 
     startWatch();
     enableHeading();
@@ -376,8 +449,25 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       meAccuracyRef.current = null;
       lastPosRef.current = null;
       routeLineRef.current = null;
+      tileLayerRef.current = null;
     };
   }, []);
+
+  // Swap map tiles + theme class when the color scheme changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const cfg = scheme === "dark" ? TILES.dark : TILES.light;
+    if (tileLayerRef.current) map.removeLayer(tileLayerRef.current);
+    tileLayerRef.current = L.tileLayer(cfg.url, {
+      attribution: cfg.attribution,
+      ...cfg.options,
+    }).addTo(map);
+    tileLayerRef.current.bringToBack();
+    const c = map.getContainer();
+    c.classList.remove("theme-light", "theme-dark");
+    c.classList.add(scheme === "dark" ? "theme-dark" : "theme-light");
+  }, [scheme]);
 
   // Recolor markers + refresh guidance when the checked state changes
   useEffect(() => {
@@ -485,7 +575,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
           height: 44,
           borderRadius: 22,
           border: "none",
-          background: "#ffffff",
+          background: colors.controlBg,
           boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
           cursor: "pointer",
           display: "flex",
@@ -499,7 +589,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
           height="22"
           viewBox="0 0 24 24"
           fill="none"
-          stroke={hasFix ? ME : "#5b6472"}
+          stroke={hasFix ? ME : colors.controlIcon}
           strokeWidth="2"
           strokeLinecap="round"
         >

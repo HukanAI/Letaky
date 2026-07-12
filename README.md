@@ -8,7 +8,12 @@ Funkce:
 - Přepínání mezi **seznamem** a **mapou** domů
 - Seznam všech adres v pořadí trasy (viz `src/data/addresses.ts`, zdroj `Letaky.docx`)
 - Mapa s domy zvýrazněnými přímo na jejich poloze (Karviná-Mizerov) — klepnutím
-  na dům ho označíš jako hotový, barva se změní (červená = zbývá, zelená = hotovo)
+  na dům ho označíš jako hotový, barva se změní (červená = zbývá, zelená = hotovo).
+  U každého domu je **trvalý štítek s číslem** (po přiblížení, aby se nepřekrývaly).
+- **Automatické odškrtnutí při příchodu k domu** — jakmile jsi podle GPS do ~15 m
+  od nedoručeného domu (a poloha je dost přesná), sám se označí jako hotový.
+- **Tmavý režim** — přepínač (měsíc/slunce) v hlavičce; ve výchozím stavu se řídí
+  nastavením telefonu. Mapa v tmavém režimu používá tmavé podkladové dlaždice.
 - GPS poloha se na mapě zapne a sleduje **automaticky** po otevření mapy
   (vyžaduje povolení polohy v prohlížeči). Poloha je zobrazená jako **šipka
   ukazující směr, kterým se díváš** (podle kompasu telefonu); dokud kompas nemá
