@@ -20,6 +20,11 @@ const POINTS = ADDRESSES.filter((a) => GEO[a]).map((a) => ({
 
 type Banner = { text: string; kind: "error" | "info" } | null;
 
+function formatDist(m: number): string {
+  if (m < 1000) return `${Math.round(m)} m`;
+  return `${(m / 1000).toFixed(1)} km`;
+}
+
 export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -27,11 +32,21 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const toggleRef = useRef(onToggle);
   toggleRef.current = onToggle;
 
+  const checkedRef = useRef(checked);
+  checkedRef.current = checked;
+
   const watchIdRef = useRef<number | null>(null);
   const meMarkerRef = useRef<L.CircleMarker | null>(null);
   const meAccuracyRef = useRef<L.Circle | null>(null);
   const lastPosRef = useRef<L.LatLng | null>(null);
+
+  const guidingRef = useRef(false);
+  const guideTargetRef = useRef<string | null>(null);
+  const routeLineRef = useRef<L.Polyline | null>(null);
+
   const [hasFix, setHasFix] = useState(false);
+  const [guiding, setGuiding] = useState(false);
+  const [guideInfo, setGuideInfo] = useState<string | null>(null);
   const [banner, setBanner] = useState<Banner>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -41,6 +56,79 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
     if (kind === "info") {
       bannerTimer.current = setTimeout(() => setBanner(null), 4000);
     }
+  };
+
+  const styleMarker = (address: string) => {
+    const m = markersRef.current[address];
+    if (!m) return;
+    const done = !!checkedRef.current[address];
+    const isTarget = guideTargetRef.current === address;
+    m.setStyle({
+      fillColor: done ? DONE : TODO,
+      color: isTarget ? ME : "#ffffff",
+      weight: isTarget ? 4 : 2,
+    });
+    m.setRadius(isTarget ? 11 : 9);
+  };
+
+  const styleAllMarkers = () => {
+    for (const p of POINTS) styleMarker(p.address);
+  };
+
+  const stopGuiding = () => {
+    guidingRef.current = false;
+    guideTargetRef.current = null;
+    setGuiding(false);
+    setGuideInfo(null);
+    if (routeLineRef.current) {
+      routeLineRef.current.remove();
+      routeLineRef.current = null;
+    }
+    styleAllMarkers();
+  };
+
+  const updateGuidance = () => {
+    const map = mapRef.current;
+    const me = lastPosRef.current;
+    if (!guidingRef.current || !map || !me) return;
+
+    const remaining = POINTS.filter((p) => !checkedRef.current[p.address]);
+    if (remaining.length === 0) {
+      stopGuiding();
+      showBanner("Všechny domy jsou hotové 🎉", "info");
+      return;
+    }
+
+    let best = remaining[0];
+    let bestDist = Infinity;
+    for (const p of remaining) {
+      const d = me.distanceTo(L.latLng(p.lat, p.lon));
+      if (d < bestDist) {
+        bestDist = d;
+        best = p;
+      }
+    }
+
+    const prevTarget = guideTargetRef.current;
+    guideTargetRef.current = best.address;
+    if (prevTarget !== best.address) styleAllMarkers();
+
+    const line: L.LatLngExpression[] = [
+      [me.lat, me.lng],
+      [best.lat, best.lon],
+    ];
+    if (!routeLineRef.current) {
+      routeLineRef.current = L.polyline(line, {
+        color: ME,
+        weight: 4,
+        opacity: 0.85,
+        dashArray: "6 8",
+      }).addTo(map);
+    } else {
+      routeLineRef.current.setLatLngs(line);
+    }
+
+    setGuideInfo(`${best.street} ${best.address} · ${formatDist(bestDist)}`);
   };
 
   const startWatch = () => {
@@ -81,6 +169,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
           meMarkerRef.current.setLatLng(ll);
           meAccuracyRef.current?.setLatLng(ll).setRadius(accuracy);
         }
+        updateGuidance();
       },
       (err) => {
         showBanner(
@@ -145,17 +234,14 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       meMarkerRef.current = null;
       meAccuracyRef.current = null;
       lastPosRef.current = null;
+      routeLineRef.current = null;
     };
   }, []);
 
-  // Recolor markers when the checked state changes
+  // Recolor markers + refresh guidance when the checked state changes
   useEffect(() => {
-    for (const p of POINTS) {
-      const marker = markersRef.current[p.address];
-      if (marker) {
-        marker.setStyle({ fillColor: checked[p.address] ? DONE : TODO });
-      }
-    }
+    styleAllMarkers();
+    updateGuidance();
   }, [checked]);
 
   const centerOnMe = () => {
@@ -169,35 +255,37 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
     }
   };
 
-  const navigateToNearest = () => {
+  const toggleGuiding = () => {
     const map = mapRef.current;
+    if (guidingRef.current) {
+      stopGuiding();
+      return;
+    }
     const me = lastPosRef.current;
     if (!me) {
       startWatch();
       showBanner("Zjišťuji tvou polohu…", "info");
       return;
     }
-    const remaining = POINTS.filter((p) => !checked[p.address]);
-    if (remaining.length === 0) {
+    if (POINTS.every((p) => checkedRef.current[p.address])) {
       showBanner("Všechny domy jsou hotové 🎉", "info");
       return;
     }
-    let best = remaining[0];
-    let bestDist = Infinity;
-    for (const p of remaining) {
-      const d = me.distanceTo(L.latLng(p.lat, p.lon));
-      if (d < bestDist) {
-        bestDist = d;
-        best = p;
-      }
+    guidingRef.current = true;
+    setGuiding(true);
+    updateGuidance();
+    const target = guideTargetRef.current
+      ? GEO[guideTargetRef.current]
+      : null;
+    if (map && target) {
+      map.fitBounds(
+        L.latLngBounds([
+          [me.lat, me.lng],
+          [target.lat, target.lon],
+        ]).pad(0.3),
+        { maxZoom: 18 }
+      );
     }
-    // Ukázat cíl na mapě
-    if (map) {
-      map.panTo([best.lat, best.lon]);
-      markersRef.current[best.address]?.openTooltip();
-    }
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${best.lat},${best.lon}&travelmode=walking`;
-    window.open(url, "_blank", "noopener");
   };
 
   return (
@@ -205,8 +293,12 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
 
       <button
-        onClick={navigateToNearest}
-        title="Navigovat k nejbližšímu nedoručenému domu"
+        onClick={toggleGuiding}
+        title={
+          guiding
+            ? "Ukončit navigaci"
+            : "Navigovat k nejbližšímu nedoručenému domu"
+        }
         style={{
           position: "absolute",
           left: 12,
@@ -217,7 +309,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
           paddingRight: 16,
           borderRadius: 22,
           border: "none",
-          background: ME,
+          background: guiding ? "#a12727" : ME,
           color: "#ffffff",
           boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
           cursor: "pointer",
@@ -229,9 +321,13 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
         }}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true">
-          <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z" />
+          {guiding ? (
+            <path d="M6 6l12 12M18 6L6 18" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
+          ) : (
+            <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z" />
+          )}
         </svg>
-        K nejbližšímu
+        {guiding ? "Ukončit" : "K nejbližšímu"}
       </button>
 
       <button
@@ -272,7 +368,30 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
         </svg>
       </button>
 
-      {banner && (
+      {guiding && guideInfo && (
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1000,
+            background: ME,
+            color: "#ffffff",
+            borderRadius: 8,
+            padding: "7px 14px",
+            fontSize: 14,
+            fontWeight: 600,
+            maxWidth: "90%",
+            textAlign: "center",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+          }}
+        >
+          ➤ {guideInfo}
+        </div>
+      )}
+
+      {banner && !(guiding && guideInfo) && (
         <div
           style={{
             position: "absolute",

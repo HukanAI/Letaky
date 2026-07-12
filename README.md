@@ -12,8 +12,11 @@ Funkce:
 - GPS poloha (modrá tečka) se na mapě zapne a sleduje **automaticky** po otevření
   mapy (vyžaduje povolení polohy v prohlížeči); tlačítko se zaměřovačem mapu
   jen vycentruje na tvou aktuální polohu
-- Tlačítko **„K nejbližšímu"** najde nejbližší ještě nedoručený dům od tvé polohy
-  a spustí navigaci pěšky (otevře Google Maps s trasou)
+- Tlačítko **„K nejbližšímu"** zapne navigaci **přímo v aplikaci**: na mapě
+  nakreslí čáru od tvé polohy k nejbližšímu ještě nedoručenému domu, cíl zvýrazní
+  a nahoře ukáže jeho adresu a vzdálenost. Jak se pohybuješ a jak odškrtáváš domy,
+  se cíl i čára průběžně přepočítávají. (Směr je vzdušnou čarou, ne po ulicích;
+  neopouští aplikaci a funguje i offline.)
 - Zaškrtávání jednotlivých adres, ihned se ukládá do zařízení (seznam i mapa sdílí stav)
 - Ukazatel postupu (kolik z kolika je hotovo)
 - Vyhledávání/filtrování podle čísla domu
