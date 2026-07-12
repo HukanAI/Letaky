@@ -9,8 +9,11 @@ Funkce:
 - Seznam všech adres v pořadí trasy (viz `src/data/addresses.ts`, zdroj `Letaky.docx`)
 - Mapa s domy zvýrazněnými přímo na jejich poloze (Karviná-Mizerov) — klepnutím
   na dům ho označíš jako hotový, barva se změní (červená = zbývá, zelená = hotovo)
-- Tlačítko **„Kde jsem"** na mapě zobrazí tvou aktuální GPS polohu (modrá tečka)
-  a průběžně ji sleduje, jak se pohybuješ (vyžaduje povolení polohy v prohlížeči)
+- GPS poloha (modrá tečka) se na mapě zapne a sleduje **automaticky** po otevření
+  mapy (vyžaduje povolení polohy v prohlížeči); tlačítko se zaměřovačem mapu
+  jen vycentruje na tvou aktuální polohu
+- Tlačítko **„K nejbližšímu"** najde nejbližší ještě nedoručený dům od tvé polohy
+  a spustí navigaci pěšky (otevře Google Maps s trasou)
 - Zaškrtávání jednotlivých adres, ihned se ukládá do zařízení (seznam i mapa sdílí stav)
 - Ukazatel postupu (kolik z kolika je hotovo)
 - Vyhledávání/filtrování podle čísla domu

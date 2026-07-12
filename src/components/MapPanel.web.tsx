@@ -18,6 +18,8 @@ const POINTS = ADDRESSES.filter((a) => GEO[a]).map((a) => ({
   ...GEO[a],
 }));
 
+type Banner = { text: string; kind: "error" | "info" } | null;
+
 export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -28,10 +30,71 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
   const watchIdRef = useRef<number | null>(null);
   const meMarkerRef = useRef<L.CircleMarker | null>(null);
   const meAccuracyRef = useRef<L.Circle | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [geoError, setGeoError] = useState<string | null>(null);
+  const lastPosRef = useRef<L.LatLng | null>(null);
+  const [hasFix, setHasFix] = useState(false);
+  const [banner, setBanner] = useState<Banner>(null);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Init map once
+  const showBanner = (text: string, kind: "error" | "info") => {
+    setBanner({ text, kind });
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    if (kind === "info") {
+      bannerTimer.current = setTimeout(() => setBanner(null), 4000);
+    }
+  };
+
+  const startWatch = () => {
+    if (watchIdRef.current != null) return;
+    if (!("geolocation" in navigator)) {
+      showBanner("Poloha není v tomto zařízení dostupná.", "error");
+      return;
+    }
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const map = mapRef.current;
+        if (!map) return;
+        const { latitude, longitude, accuracy } = pos.coords;
+        const ll = L.latLng(latitude, longitude);
+        lastPosRef.current = ll;
+        setHasFix(true);
+        setBanner((b) => (b && b.kind === "error" ? null : b));
+        if (!meMarkerRef.current) {
+          meAccuracyRef.current = L.circle(ll, {
+            radius: accuracy,
+            color: ME,
+            weight: 1,
+            fillColor: ME,
+            fillOpacity: 0.12,
+          }).addTo(map);
+          meMarkerRef.current = L.circleMarker(ll, {
+            radius: 8,
+            weight: 3,
+            color: "#ffffff",
+            fillColor: ME,
+            fillOpacity: 1,
+          }).addTo(map);
+          meMarkerRef.current.bindTooltip("Tady jsem", {
+            direction: "top",
+            offset: [0, -8],
+          });
+        } else {
+          meMarkerRef.current.setLatLng(ll);
+          meAccuracyRef.current?.setLatLng(ll).setRadius(accuracy);
+        }
+      },
+      (err) => {
+        showBanner(
+          err.code === err.PERMISSION_DENIED
+            ? "Přístup k poloze byl zamítnut."
+            : "Polohu se nepodařilo zjistit.",
+          "error"
+        );
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+  };
+
+  // Init map + start location tracking immediately
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -66,20 +129,22 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
     }
 
     map.fitBounds(L.latLngBounds(latlngs).pad(0.15));
-
-    // Leaflet may misread size inside a flex container until laid out.
     setTimeout(() => map.invalidateSize(), 0);
+
+    startWatch();
 
     return () => {
       if (watchIdRef.current != null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
+      if (bannerTimer.current) clearTimeout(bannerTimer.current);
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
       meMarkerRef.current = null;
       meAccuracyRef.current = null;
+      lastPosRef.current = null;
     };
   }, []);
 
@@ -93,81 +158,46 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
     }
   }, [checked]);
 
-  const stopLocate = () => {
-    if (watchIdRef.current != null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
+  const centerOnMe = () => {
+    const map = mapRef.current;
+    const me = lastPosRef.current;
+    if (me && map) {
+      map.setView(me, Math.max(map.getZoom(), 17));
+    } else {
+      startWatch();
+      showBanner("Zjišťuji tvou polohu…", "info");
     }
-    watchIdRef.current = null;
-    if (meMarkerRef.current) {
-      meMarkerRef.current.remove();
-      meMarkerRef.current = null;
-    }
-    if (meAccuracyRef.current) {
-      meAccuracyRef.current.remove();
-      meAccuracyRef.current = null;
-    }
-    setLocating(false);
   };
 
-  const toggleLocate = () => {
+  const navigateToNearest = () => {
     const map = mapRef.current;
-    if (!map) return;
-
-    if (watchIdRef.current != null) {
-      stopLocate();
+    const me = lastPosRef.current;
+    if (!me) {
+      startWatch();
+      showBanner("Zjišťuji tvou polohu…", "info");
       return;
     }
-    if (!("geolocation" in navigator)) {
-      setGeoError("Poloha není v tomto zařízení dostupná.");
+    const remaining = POINTS.filter((p) => !checked[p.address]);
+    if (remaining.length === 0) {
+      showBanner("Všechny domy jsou hotové 🎉", "info");
       return;
     }
-
-    setGeoError(null);
-    setLocating(true);
-    let firstFix = true;
-
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        const ll = L.latLng(latitude, longitude);
-        if (!meMarkerRef.current) {
-          meAccuracyRef.current = L.circle(ll, {
-            radius: accuracy,
-            color: ME,
-            weight: 1,
-            fillColor: ME,
-            fillOpacity: 0.12,
-          }).addTo(map);
-          meMarkerRef.current = L.circleMarker(ll, {
-            radius: 8,
-            weight: 3,
-            color: "#ffffff",
-            fillColor: ME,
-            fillOpacity: 1,
-          }).addTo(map);
-          meMarkerRef.current.bindTooltip("Tady jsem", {
-            direction: "top",
-            offset: [0, -8],
-          });
-        } else {
-          meMarkerRef.current.setLatLng(ll);
-          meAccuracyRef.current?.setLatLng(ll).setRadius(accuracy);
-        }
-        if (firstFix) {
-          map.setView(ll, Math.max(map.getZoom(), 17));
-          firstFix = false;
-        }
-      },
-      (err) => {
-        setGeoError(
-          err.code === err.PERMISSION_DENIED
-            ? "Přístup k poloze byl zamítnut."
-            : "Polohu se nepodařilo zjistit."
-        );
-        stopLocate();
-      },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-    );
+    let best = remaining[0];
+    let bestDist = Infinity;
+    for (const p of remaining) {
+      const d = me.distanceTo(L.latLng(p.lat, p.lon));
+      if (d < bestDist) {
+        bestDist = d;
+        best = p;
+      }
+    }
+    // Ukázat cíl na mapě
+    if (map) {
+      map.panTo([best.lat, best.lon]);
+      markersRef.current[best.address]?.openTooltip();
+    }
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${best.lat},${best.lon}&travelmode=walking`;
+    window.open(url, "_blank", "noopener");
   };
 
   return (
@@ -175,8 +205,38 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
 
       <button
-        onClick={toggleLocate}
-        title={locating ? "Vypnout sledování polohy" : "Kde jsem"}
+        onClick={navigateToNearest}
+        title="Navigovat k nejbližšímu nedoručenému domu"
+        style={{
+          position: "absolute",
+          left: 12,
+          bottom: 28,
+          zIndex: 1000,
+          height: 44,
+          paddingLeft: 14,
+          paddingRight: 16,
+          borderRadius: 22,
+          border: "none",
+          background: ME,
+          color: "#ffffff",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 14,
+          fontWeight: 600,
+        }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true">
+          <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z" />
+        </svg>
+        K nejbližšímu
+      </button>
+
+      <button
+        onClick={centerOnMe}
+        title="Vycentrovat na mou polohu"
         style={{
           position: "absolute",
           right: 12,
@@ -200,7 +260,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
           height="22"
           viewBox="0 0 24 24"
           fill="none"
-          stroke={locating ? ME : "#5b6472"}
+          stroke={hasFix ? ME : "#5b6472"}
           strokeWidth="2"
           strokeLinecap="round"
         >
@@ -212,7 +272,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
         </svg>
       </button>
 
-      {geoError && (
+      {banner && (
         <div
           style={{
             position: "absolute",
@@ -220,9 +280,9 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 1000,
-            background: "#fdecec",
-            color: "#a12727",
-            border: "1px solid #f3c2c2",
+            background: banner.kind === "error" ? "#fdecec" : "#eaf1fb",
+            color: banner.kind === "error" ? "#a12727" : "#1a4a8a",
+            border: `1px solid ${banner.kind === "error" ? "#f3c2c2" : "#c2d6f3"}`,
             borderRadius: 8,
             padding: "6px 12px",
             fontSize: 13,
@@ -230,7 +290,7 @@ export default function MapPanel({ checked, onToggle }: MapPanelProps) {
             textAlign: "center",
           }}
         >
-          {geoError}
+          {banner.text}
         </div>
       )}
     </div>
