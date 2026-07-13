@@ -78,6 +78,11 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
   const meAccuracyRef = useRef<L.Circle | null>(null);
   const lastPosRef = useRef<L.LatLng | null>(null);
   const autoCheckedRef = useRef<Set<string>>(new Set());
+  // Plynulý pohyb značky mezi GPS body (interpolace přes requestAnimationFrame).
+  const renderPosRef = useRef<L.LatLng | null>(null);
+  const renderAccRef = useRef<number | null>(null);
+  const animRafRef = useRef<number | null>(null);
+  const animTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const headingRef = useRef<number | null>(null);
   const headingEnabledRef = useRef(false);
@@ -353,6 +358,49 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
     styleAllMarkers();
   };
 
+  // Plynulý přesun značky (a mapy při sledování) z aktuální pozice na nový GPS bod.
+  const POS_ANIM_MS = 1000;
+  const animateTo = (target: L.LatLng, targetAcc: number) => {
+    const map = mapRef.current;
+    const marker = meMarkerRef.current;
+    if (!map || !marker) return;
+    const from = renderPosRef.current ?? target;
+    const fromAcc = renderAccRef.current ?? targetAcc;
+    const start =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+
+    if (animRafRef.current != null) cancelAnimationFrame(animRafRef.current);
+    if (animTimeoutRef.current != null) clearTimeout(animTimeoutRef.current);
+
+    const apply = (pos: L.LatLng, acc: number) => {
+      renderPosRef.current = pos;
+      renderAccRef.current = acc;
+      marker.setLatLng(pos);
+      meAccuracyRef.current?.setLatLng(pos).setRadius(acc);
+      if (followRef.current) map.setView(pos, map.getZoom(), { animate: false });
+    };
+
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / POS_ANIM_MS);
+      apply(
+        L.latLng(
+          from.lat + (target.lat - from.lat) * p,
+          from.lng + (target.lng - from.lng) * p
+        ),
+        fromAcc + (targetAcc - fromAcc) * p
+      );
+      if (p < 1) animRafRef.current = requestAnimationFrame(step);
+    };
+    animRafRef.current = requestAnimationFrame(step);
+
+    // Pojistka: i kdyby snímky vynechaly, na konci značka dosedne přesně na cíl.
+    animTimeoutRef.current = setTimeout(() => {
+      if (animRafRef.current != null) cancelAnimationFrame(animRafRef.current);
+      animRafRef.current = null;
+      apply(target, targetAcc);
+    }, POS_ANIM_MS + 80);
+  };
+
   const startWatch = () => {
     if (watchIdRef.current != null) return;
     if (!("geolocation" in navigator)) {
@@ -387,13 +435,13 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
             interactive: false,
             keyboard: false,
           }).addTo(map);
+          renderPosRef.current = ll;
+          renderAccRef.current = accuracy;
           if (headingRef.current != null) applyHeading(headingRef.current);
         } else {
-          meMarkerRef.current.setLatLng(ll);
-          meAccuracyRef.current?.setLatLng(ll).setRadius(accuracy);
+          animateTo(ll, accuracy);
         }
         if (headingRef.current != null) applyHeading(headingRef.current);
-        if (followRef.current) map.setView(ll, map.getZoom(), { animate: false });
         maybeAutoCheck(ll, accuracy);
         updateGuidance();
       },
@@ -473,12 +521,15 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
       }
       headingEnabledRef.current = false;
       if (bannerTimer.current) clearTimeout(bannerTimer.current);
+      if (animRafRef.current != null) cancelAnimationFrame(animRafRef.current);
+      if (animTimeoutRef.current != null) clearTimeout(animTimeoutRef.current);
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
       meMarkerRef.current = null;
       meAccuracyRef.current = null;
       lastPosRef.current = null;
+      renderPosRef.current = null;
       routeLineRef.current = null;
     };
   }, []);
