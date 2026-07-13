@@ -82,6 +82,9 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
   const headingRef = useRef<number | null>(null);
   const headingEnabledRef = useRef(false);
   const orientHandlerRef = useRef<((e: any) => void) | null>(null);
+  // Vyhlazení kompasu: EMA na jednotkovém vektoru + spojitý úhel (otáčení nejkratší cestou).
+  const headingVecRef = useRef<{ x: number; y: number } | null>(null);
+  const appliedAngleRef = useRef<number | null>(null);
 
   const guidingRef = useRef(false);
   const guideTargetRef = useRef<string | null>(null);
@@ -104,12 +107,39 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
   };
 
   // --- Heading (which way you're facing) ---
-  const applyHeading = (deg: number) => {
+  const applyHeading = (rawDeg: number) => {
+    // Nízkoprůchodový filtr přes jednotkový vektor (řeší přechod přes 0°/360°).
+    const rad = (rawDeg * Math.PI) / 180;
+    const vx = Math.cos(rad);
+    const vy = Math.sin(rad);
+    const alpha = 0.15;
+    const v = headingVecRef.current;
+    if (!v) {
+      headingVecRef.current = { x: vx, y: vy };
+    } else {
+      v.x += alpha * (vx - v.x);
+      v.y += alpha * (vy - v.y);
+    }
+    const sm = headingVecRef.current!;
+    let deg = (Math.atan2(sm.y, sm.x) * 180) / Math.PI;
+    deg = (deg + 360) % 360;
+
+    // Spojitý úhel: otoč vždy nejkratší cestou, ne přes celý kruh.
+    const prev = appliedAngleRef.current;
+    let applied: number;
+    if (prev == null) {
+      applied = deg;
+    } else {
+      const delta = (((deg - (prev % 360)) % 360) + 540) % 360 - 180;
+      applied = prev + delta;
+    }
+    appliedAngleRef.current = applied;
+
     const m = meMarkerRef.current;
     const el = m ? (m.getElement() as HTMLElement | null) : null;
     const arrow = el?.querySelector<HTMLElement>(".me-arrow");
     if (arrow) {
-      arrow.style.transform = `rotate(${deg}deg)`;
+      arrow.style.transform = `rotate(${applied}deg)`;
       arrow.style.opacity = "1";
     }
   };
