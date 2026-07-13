@@ -91,7 +91,9 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
   const routeLineRef = useRef<L.Polyline | null>(null);
   const routeOriginRef = useRef<L.LatLng | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const followRef = useRef(false);
 
+  const [following, setFollowing] = useState(false);
   const [hasFix, setHasFix] = useState(false);
   const [guiding, setGuiding] = useState(false);
   const [guideInfo, setGuideInfo] = useState<string | null>(null);
@@ -391,6 +393,7 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
           meAccuracyRef.current?.setLatLng(ll).setRadius(accuracy);
         }
         if (headingRef.current != null) applyHeading(headingRef.current);
+        if (followRef.current) map.setView(ll, map.getZoom(), { animate: false });
         maybeAutoCheck(ll, accuracy);
         updateGuidance();
       },
@@ -422,6 +425,11 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
       maxZoom: 19,
       attribution: "© OpenStreetMap",
     }).addTo(map);
+
+    // Ruční posunutí mapy vypne sledování, ať uživateli neujíždí zpět.
+    map.on("dragstart", () => {
+      if (followRef.current) setFollow(false);
+    });
 
     const latlngs: L.LatLngExpression[] = [];
     for (const p of POINTS) {
@@ -481,11 +489,21 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
     updateGuidance();
   }, [checked]);
 
-  const centerOnMe = () => {
+  const setFollow = (on: boolean) => {
+    followRef.current = on;
+    setFollowing(on);
+  };
+
+  const toggleFollow = () => {
     enableHeading();
     const map = mapRef.current;
     const me = lastPosRef.current;
+    if (followRef.current) {
+      setFollow(false);
+      return;
+    }
     if (me && map) {
+      setFollow(true);
       map.setView(me, Math.max(map.getZoom(), 17));
     } else {
       startWatch();
@@ -570,8 +588,10 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
       </button>
 
       <button
-        onClick={centerOnMe}
-        title="Vycentrovat na mou polohu"
+        onClick={toggleFollow}
+        title={
+          following ? "Sledování polohy zapnuto (klepni pro vypnutí)" : "Sledovat mou polohu"
+        }
         style={{
           position: "absolute",
           right: 12,
@@ -581,7 +601,7 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
           height: 44,
           borderRadius: 22,
           border: "none",
-          background: "#ffffff",
+          background: following ? ME : "#ffffff",
           boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
           cursor: "pointer",
           display: "flex",
@@ -595,7 +615,7 @@ export default function MapPanel({ checked, onToggle, autoCheck }: MapPanelProps
           height="22"
           viewBox="0 0 24 24"
           fill="none"
-          stroke={hasFix ? ME : "#5b6472"}
+          stroke={following ? "#ffffff" : hasFix ? ME : "#5b6472"}
           strokeWidth="2"
           strokeLinecap="round"
         >

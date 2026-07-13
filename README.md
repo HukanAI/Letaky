@@ -17,7 +17,8 @@ Funkce:
 - GPS poloha se na mapě zapne a sleduje **automaticky** po otevření mapy
   (vyžaduje povolení polohy v prohlížeči). Poloha je zobrazená jako **šipka
   ukazující směr, kterým se díváš** (podle kompasu telefonu); dokud kompas nemá
-  data, ukáže se jen tečka. Tlačítko se zaměřovačem mapu vycentruje na tvou polohu.
+  data, ukáže se jen tečka. Tlačítko se zaměřovačem zapne **sledování** – mapa se
+  pak sama drží na tvé poloze, jak jdeš (ručním posunutím mapy se sledování vypne).
 - Tlačítko **„K nejbližšímu"** zapne navigaci **přímo v aplikaci**: na mapě
   nakreslí trasu **po ulicích** od tvé polohy k nejbližšímu ještě nedoručenému
   domu, cíl zvýrazní a nahoře ukáže jeho adresu, vzdálenost a čas chůze. Jak se
