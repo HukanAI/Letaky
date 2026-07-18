@@ -28,6 +28,8 @@ Funkce:
 - Zaškrtávání jednotlivých adres, ihned se ukládá do zařízení (seznam i mapa sdílí stav)
 - Ukazatel postupu (kolik z kolika je hotovo)
 - Vyhledávání/filtrování podle čísla domu
+- **Nevypínání obrazovky** během roznosu (ikona žárovky v hlavičce, ve výchozím
+  stavu zapnuto) – displej nezhasne, dokud máš appku otevřenou
 - Tlačítko pro reset všech zaškrtnutí (na další kolo roznosu)
 
 Funguje na Androidu i iPhonu (jedna společná aplikace postavená na React Native / Expo).

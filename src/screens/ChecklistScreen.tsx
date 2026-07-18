@@ -14,10 +14,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ADDRESSES } from "../data/addresses";
 import { GEO } from "../data/geo";
 import { useChecklist } from "../lib/useChecklist";
+import { useWakeLock } from "../lib/useWakeLock";
 import ConfirmDialog from "../components/ConfirmDialog";
 import MapPanel from "../components/MapPanel";
 
 const AUTOCHECK_KEY = "letaky:autocheck";
+const KEEPAWAKE_KEY = "letaky:keepawake";
 
 type Mode = "list" | "map";
 
@@ -28,14 +30,25 @@ export default function ChecklistScreen() {
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [mode, setMode] = useState<Mode>("list");
   const [autoCheck, setAutoCheck] = useState(false);
+  const [keepAwake, setKeepAwake] = useState(true);
+
+  useWakeLock(keepAwake);
 
   useEffect(() => {
     AsyncStorage.getItem(AUTOCHECK_KEY).then((v) => setAutoCheck(v === "1"));
+    AsyncStorage.getItem(KEEPAWAKE_KEY).then((v) => {
+      if (v === "0") setKeepAwake(false);
+    });
   }, []);
 
   const toggleAutoCheck = (v: boolean) => {
     setAutoCheck(v);
     AsyncStorage.setItem(AUTOCHECK_KEY, v ? "1" : "0");
+  };
+
+  const toggleKeepAwake = (v: boolean) => {
+    setKeepAwake(v);
+    AsyncStorage.setItem(KEEPAWAKE_KEY, v ? "1" : "0");
   };
 
   const sections = useMemo(() => {
@@ -66,6 +79,18 @@ export default function ChecklistScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Letáky</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => toggleKeepAwake(!keepAwake)}
+            style={styles.iconButton}
+            hitSlop={10}
+            accessibilityLabel="Nevypínat obrazovku během roznosu"
+          >
+            <Ionicons
+              name={keepAwake ? "bulb" : "bulb-outline"}
+              size={20}
+              color={keepAwake ? "#2e7d5b" : "#8a93a2"}
+            />
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => toggleAutoCheck(!autoCheck)}
             style={styles.headerButton}
@@ -237,6 +262,10 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  iconButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 6,
   },
   headerButton: {
     flexDirection: "row",
